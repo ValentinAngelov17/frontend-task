@@ -1,5 +1,5 @@
 export interface BannerDto {
-    id?: string
+    id: string
     link: string
     imageUrl: string
 }
