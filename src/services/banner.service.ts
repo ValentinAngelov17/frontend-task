@@ -6,7 +6,14 @@ class BannerService {
     private readonly BANNER_KEY = 'banners'
 
     async createBanner(banner: BannerDto) {
-        this.saveBanners([banner, ...this.listBanners()])
+        const banners = this.listBanners();
+
+        if (!banners.find(b => b.id === banner.id)) {
+            const updatedBanners = [banner, ...banners];
+            this.saveBanners(updatedBanners);
+            return updatedBanners; // Return updated list
+        }
+        return banners; // Return the same list if no changes
     }
 
     async getBanners(page: PageRequest) {
@@ -40,12 +47,23 @@ class BannerService {
         return this.listBanners().find(banner => banner.id === id)
     }
 
-    async updateBanner(id: string, banner: BannerDto) {
+    async updateBanner(id: string, updatedBanner: BannerDto) {
         //todo update banner logic
+        let banners = this.listBanners(); // Get the list of banners
+
+        banners = banners.map(banner => 
+            banner.id === id ? { ...banner, ...updatedBanner } : banner
+        );
+    
+        this.saveBanners(banners); // Save the updated list
+        return updatedBanner;
     }
 
     async deleteBanner(id: string) {
         //todo delete banner logic
+        let banners = this.listBanners().filter(banner => banner.id !== id)
+        this.saveBanners(banners)
+        return banners
     }
 
     private listBanners() {
