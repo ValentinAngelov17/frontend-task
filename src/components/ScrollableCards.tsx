@@ -4,12 +4,13 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { PageRequest } from '../services/dto/page.request.ts'
 import { PageResponse } from '../services/dto/page.response.ts'
 
-export default function ScrollableCards<T>(props: {
-    loadMore: (page: PageRequest) => Promise<PageResponse<T> | undefined>
-    mapCard: (value: T, deleteItem: (id: string) => void) => React.JSX.Element
-    skeletonMap: (_: any, index: number) => React.JSX.Element
+export default function ScrollableCards<T extends { id: string }>(props: {
+    loadMore: (page: PageRequest) => Promise<PageResponse<T> | undefined>;
+    mapCard: (value: T, deleteItem: (id: string) => void) => React.JSX.Element;
+    skeletonMap: (_: any, index: number) => React.JSX.Element;
+    hasMore: boolean;
 }) {
-    const initial = [...Array(12)].map(props.skeletonMap)
+    const initial = [...Array(0)].map(props.skeletonMap)
     const [cards, setCards] = useState<React.JSX.Element[]>(initial)
     const [page, setPage] = useState<number>(0)
     const [hasMore, setHasMore] = useState<boolean>(true)
@@ -26,22 +27,36 @@ export default function ScrollableCards<T>(props: {
         })
     }, [])
 
+    const [cardsData, setCardsData] = useState<T[]>([]); 
+
     const loadBanners = useCallback(async () => {
-        const newCards = await props.loadMore({ page, pageSize: 12 })
-        if (!newCards) {
-            return
+        try {
+            const newCards = await props.loadMore({ page, pageSize: 12 });
+            if (!newCards || !newCards.content) return;
+
+            if (newCards.content.length > 0) {
+                setPage((prevPage) => prevPage + 1);
+            }
+
+            setCardsData((prevCards) => {
+                const existingIds = new Set(prevCards.map((item) => item.id));
+
+                const newElements = newCards.content.filter((value) => !existingIds.has(value.id));
+                return [...prevCards, ...newElements]; 
+            });
+
+            setHasMore(newCards.pageNumber + 1 < Math.ceil(newCards.maxPageNumber));
+        } catch (error) {
+            console.error("Error loading banners:", error);
         }
-        let currentCards = [...cards]
-        setPage(newCards.pageNumber)
-        setHasMore(newCards.maxPageNumber > newCards.pageNumber)
-        const newElements = newCards.content.map((value) => props.mapCard(value, deleteItem))
-        setCards([...currentCards, ...newElements])
-    }, [cards, page, deleteItem, props])
+    }, [page, props]);
+
+
+
 
     useEffect(() => {
-        if (page != 0) return
-        loadBanners().catch((reason) => console.error(reason))
-    }, [loadBanners, page])
+        loadMore()
+    }, [cards])
 
     const loadMore = () => {
         loadBanners().catch((reason) => console.error(reason))
@@ -51,20 +66,22 @@ export default function ScrollableCards<T>(props: {
         <Grid
             container
             spacing={2}
+            sx={{
+
+                '@media (max-width: 900px)': {
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                }
+            }}
         >
             <InfiniteScroll
-                dataLength={cards.length}
+                dataLength={cardsData.length}
                 next={loadMore}
                 hasMore={hasMore}
-                scrollableTarget="scroll"
                 loader={<h4>Loading...</h4>}
-                endMessage={
-                    <p style={{ textAlign: 'center' }}>
-                        <b>There are no more items available...</b>
-                    </p>
-                }
             >
-                {...cards}
+                {cardsData.map((item) => props.mapCard(item, deleteItem))} 
             </InfiniteScroll>
         </Grid>
     )
